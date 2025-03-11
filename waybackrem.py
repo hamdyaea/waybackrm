@@ -8,7 +8,7 @@ Version: 1.0
 Description: Remove a links to wayback machine  
 Example of use: python remove_wayback.py /PATCH/TO/THE/LOCAL/SITE
 '''
-#!/usr/bin/env python3
+
 import os
 import re
 import sys
