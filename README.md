@@ -7,7 +7,7 @@ wget --mirror --convert-links --adjust-extension --page-requisites --no-parent h
   
 Then run this software and write as an argument the path to the downloaded website like this :   
 
-python remove wayback.py "/home/yourname/Téléchargements/kite/web.archive.org/web/20250121032/https:/ki.xx"
+python  waybackrem.py  "/home/yourname/Téléchargements/kite/web.archive.org/web/20250121032/https:/ki.xx"
 
 It will remove all traces of wayback machine on your file. You may have to recode the links to make the website run.
 
