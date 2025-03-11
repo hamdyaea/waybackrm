@@ -4,7 +4,7 @@ Run this command but replace it by the url of the snapshot of your website on wa
 ```
 wget --mirror --convert-links --adjust-extension --page-requisites --no-parent https://web.archive.org/web/202/https://YOUR-URL.com/    
 ```
-Install all neede python libraries :
+Install all needed python libraries :
 ```
 pip install -r requirements.txt 
 ```
