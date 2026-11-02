@@ -1,98 +1,75 @@
 #!/usr/bin/env python3
-'''
-Name: Hamdy Abou El Anein
-Email: hamdy.aea@protonmail.com
-Date of creation:  11-03-2025
-Last update: 11-03-2025
-Version: 1.0
-Description: Remove a links to wayback machine  
-Example of use: python remove_wayback.py /PATCH/TO/THE/LOCAL/SITE
-'''
-
-import os
+# Developer: Hamdy Abou El Anein
+# Contact: info@daylightlinux.ch
+# SPDX-License-Identifier: GPL-3.0-only
+"""Preview-first cleanup of Wayback Machine wrappers in local HTML."""
+from __future__ import annotations
+import argparse
+from pathlib import Path
 import re
-import sys
-from bs4 import BeautifulSoup
+import shutil
 
-def clean_html(html):
-    # Remplacer les URL de type :
-    # https://web.archive.org/web/<timestamp>/<url_origine>
-    # par l'url d'origine
-    pattern = re.compile(r'https?://web\.archive\.org/web/\d+/(https?://[^\s\'"]+)')
-    return pattern.sub(r'\1', html)
+WAYBACK = re.compile(r"https?://web\.archive\.org/web/\d+(?:[a-z_]+)?/(https?://[^\s\"'<>]+)", re.I)
 
-def process_html_file(filepath):
-    try:
-        with open(filepath, encoding="utf-8") as f:
-            html = f.read()
-    except Exception as e:
-        print(f"Erreur lors de la lecture de {filepath} : {e}")
-        return
+def clean_html(html: str) -> str:
+    # Preserve original formatting; do not reserialize whole documents.
+    return WAYBACK.sub(lambda match: match.group(1), html)
 
-    # Nettoyer les URL Wayback Machine dans le code brut
-    cleaned_html = clean_html(html)
-
-    # Parser le HTML avec BeautifulSoup
-    soup = BeautifulSoup(cleaned_html, 'html.parser')
-
-    # Fonction d'accès sécurisé à un attribut
-    def safe_get(tag, attr):
+def plan(root: Path) -> list[tuple[Path, str]]:
+    if not root.is_dir() or root.is_symlink():
+        raise ValueError("Expected a real directory")
+    changes = []
+    for path in root.rglob("*"):
+        if path.is_symlink() or not path.is_file() or path.suffix.lower() not in (".html", ".htm"):
+            continue
         try:
-            return tag.get(attr, '')
-        except Exception:
-            return ''
+            original = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        cleaned = clean_html(original)
+        if cleaned != original:
+            changes.append((path, cleaned))
+    return changes
 
-    # Supprimer les balises <script> dont l'attribut src contient "web.archive.org"
-    for tag in soup.find_all('script'):
-        src = safe_get(tag, 'src')
-        if src and "web.archive.org" in src:
-            tag.decompose()
+def apply_changes(changes: list[tuple[Path, str]]) -> int:
+    completed = 0
+    for path, cleaned in changes:
+        if path.is_symlink():
+            continue
+        backup = path.with_name(path.name + ".wayback-backup")
+        if backup.exists():
+            print(f"SKIP: backup already exists for {path}")
+            continue
+        shutil.copy2(path, backup)
+        # Exclusive backup protects original contents. Never delete the backup.
+        temp = path.with_name(path.name + ".wayback-temp")
+        if temp.exists() or temp.is_symlink():
+            print(f"SKIP: temporary file already exists for {path}")
+            continue
+        try:
+            with temp.open("x", encoding="utf-8") as stream:
+                stream.write(cleaned)
+            temp.replace(path)
+            completed += 1
+        finally:
+            temp.unlink(missing_ok=True)
+    return completed
 
-    # Supprimer les balises <link> dont l'attribut href contient "web.archive.org"
-    for tag in soup.find_all('link'):
-        href = safe_get(tag, 'href')
-        if href and "web.archive.org" in href:
-            tag.decompose()
-
-    # Supprimer les balises <iframe> dont l'attribut src contient "web.archive.org"
-    for tag in soup.find_all('iframe'):
-        src = safe_get(tag, 'src')
-        if src and "web.archive.org" in src:
-            tag.decompose()
-
-    # Supprimer tout élément dont l'id commence par "wm-" (ex: barre d'outils Wayback)
-    for tag in soup.find_all(id=re.compile(r'^wm-')):
-        tag.decompose()
-
-    # Nettoyer les attributs href ou src contenant encore le préfixe Wayback
-    for tag in soup.find_all():
-        for attr in ['href', 'src']:
-            if tag.has_attr(attr):
-                val = safe_get(tag, attr)
-                if val and "web.archive.org" in val:
-                    # On retire le préfixe Wayback : suppression de "https://web.archive.org/web/<timestamp>/"
-                    new_val = re.sub(r'https?://web\.archive\.org/web/\d+/', '', val)
-                    tag[attr] = new_val
-
-    # Enregistrer le fichier modifié
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("--apply", action="store_true", help="Write changes after creating backups")
+    args = parser.parse_args()
     try:
-        with open(filepath, 'w', encoding="utf-8") as f:
-            f.write(str(soup))
-        print(f"Fichier traité: {filepath}")
-    except Exception as e:
-        print(f"Erreur lors de l'écriture de {filepath} : {e}")
+        changes = plan(args.directory)
+    except ValueError as exc:
+        parser.error(str(exc))
+    for path, _ in changes:
+        print("CHANGE" if args.apply else "DRY-RUN", path)
+    if args.apply:
+        print("Updated:", apply_changes(changes))
+    else:
+        print(f"{len(changes)} files would change. Add --apply to write.")
 
-def process_directory(root_dir):
-    for current_path, dirs, files in os.walk(root_dir):
-        for file in files:
-            if file.lower().endswith(('.html', '.htm')):
-                filepath = os.path.join(current_path, file)
-                process_html_file(filepath)
-
-if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python remove_wayback.py <dossier_site>")
-        sys.exit(1)
-    root_directory = sys.argv[1]
-    process_directory(root_directory)
-
+if __name__ == "__main__":
+    main()
