@@ -1,21 +1,17 @@
-First of all download a version of you full website :
-  
-Run this command but replace it by the url of the snapshot of your website on wayback machine :
-```
-wget --mirror --convert-links --adjust-extension --page-requisites --no-parent https://web.archive.org/web/202/https://YOUR-URL.com/    
-```
-Install all needed python libraries :
-```
-pip install -r requirements.txt 
-```
-Then run this software and write as an argument the path to the downloaded website like this :   
-```
-python  waybackrem.py  "/home/yourname/Téléchargements/kite/web.archive.org/web/20250121032/https:/ki.xx
+# WaybackRM — Local HTML URL Cleanup
+
+**Developer:** Hamdy Abou El Anein  
+**Contact:** info@daylightlinux.ch  
+**License:** GPL v3 (see LICENSE).
+
+A modern Python 3 tool that removes Wayback Machine URL wrappers from local HTML files. Unlike the original implementation, it **does not modify files by default** and does not reserialize entire HTML documents. The `--apply` mode creates a `.wayback-backup` file before replacing each modified HTML file.
+
+```sh
+python3 waybackrem.py ./site
+python3 waybackrem.py ./site --apply
+python3 -m unittest discover -s tests -v
 ```
 
-It will remove all traces of wayback machine on your file. You may have to recode the links to make the website run.
+Only matching URL wrappers are rewritten. The program deliberately does not attempt to remove entire Wayback toolbar DOM structures, which could alter unrelated page content. Existing backups prevent repeated overwrites; symlinks are skipped. Review the preview before applying changes.
 
-Developer :  
-
-Hamdy Abou El Anein
-hamdy.aea@protonmail.com 
+Original code: [old branch](https://github.com/hamdyaea/waybackrm/tree/old).
